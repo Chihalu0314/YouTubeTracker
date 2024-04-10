@@ -1,25 +1,13 @@
-import datetime
-import time
+import googleapiclient.discovery
 import webbrowser
-from googleapiclient.discovery import build
-from tkinter import *
+import tkinter as tk
 from PIL import Image, ImageTk
 import requests
 from io import BytesIO
 
-# YouTube Data APIキーを設定します
-api_key = "AIzaSyDc-abfCYoP7CMrbVSDouqVnl_RA1mxRJU"
+def get_channel_videos(channel_id):
+    youtube = googleapiclient.discovery.build("youtube", "v3", developerKey="AIzaSyDc-abfCYoP7CMrbVSDouqVnl_RA1mxRJU")
 
-# YouTube Data APIクライアントを作成します
-youtube = build('youtube', 'v3', developerKey=api_key)
-
-# 特定のチャンネルIDを設定します
-channel_id = "UC1DCedRgGHBdm81E1llLhOQ"
-
-# 更新する時間を設定します
-update_times = [6, 12, 16, 19, 20, 20.5]
-
-def get_videos():
     request = youtube.search().list(
         part="snippet",
         channelId=channel_id,
@@ -28,20 +16,42 @@ def get_videos():
     )
     response = request.execute()
 
-    if not response["items"]:
-        print(f"現在、{channel_id}にはプレミア公開予定、プレミア公開中、ライブ配信予定、ライブ配信中の動画はありません")
+    return response['items']
+
+def display_videos(videos):
+    window = tk.Tk()
+    window.title("YouTube Channel Videos")
+    for video in videos:
+        frame = tk.Frame(window)
+        frame.pack(fill="both", expand=True)
+
+        title = video['snippet']['title']
+        thumbnail_url = video['snippet']['thumbnails']['high']['url']
+        video_url = f"https://www.youtube.com/watch?v={video['id']['videoId']}"
+
+        response = requests.get(thumbnail_url)
+        img_data = response.content
+        img = ImageTk.PhotoImage(Image.open(BytesIO(img_data)))
+
+        thumbnail_label = tk.Label(frame, image=img, cursor="hand2")
+        thumbnail_label.image = img
+        thumbnail_label.pack()
+        thumbnail_label.bind("<Button-1>", lambda e, url=video_url: webbrowser.open_new(url))
+
+        title_label = tk.Label(frame, text=title, fg="blue", cursor="hand2", wraplength=img.width())
+        title_label.pack()
+        title_label.bind("<Button-1>", lambda e, url=video_url: webbrowser.open_new(url))
+
+    window.mainloop()
+
+def main():
+    channel_id = "UC1DCedRgGHBdm81E1llLhOQ"
+    videos = get_channel_videos(channel_id)
+
+    if videos:
+        display_videos(videos)
     else:
-        for item in response["items"]:
-            print(f"タイトル: {item['snippet']['title']}")
-            print(f"サムネイル: {item['snippet']['thumbnails']['default']['url']}")
-            print(f"動画リンク: https://www.youtube.com/watch?v={item['id']['videoId']}\n")
+        print(f"現在、{channel_id}にはプレミア公開予定、プレミア公開中、ライブ配信予定、ライブ配信中の動画はありません。")
 
-def update_videos():
-    while True:
-        now = datetime.datetime.now()
-        if now.hour + now.minute / 60 in update_times:
-            get_videos()
-            time.sleep(60)  # 同じ時間に複数回更新しないように1分間スリープします
-        time.sleep(10)  # 10秒ごとに時間をチェックします
-
-update_videos()
+if __name__ == "__main__":
+    main()
